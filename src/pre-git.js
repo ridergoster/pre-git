@@ -398,7 +398,8 @@ function isBuiltInWizardName(name) {
   return builtIn[name];
 }
 
-function loadWizard(name) {
+function loadWizard(wizard) {
+  const {name, configuration} = wizard
   la(check.unemptyString(name), 'missing commit wizard name', name);
   const moduleNames = {
     simple: 'simple-commit-message',
@@ -409,10 +410,11 @@ function loadWizard(name) {
   la(check.unemptyString(loadName),
     'Unknown commit message wizard name', name);
   log('loading wizard', loadName, 'for name', name);
-  return require(loadName);
+  const wizardLoaded = require(loadName)
+  return wizardLoaded instanceof Function ? wizardLoaded(configuration) : wizardLoaded
 }
 
-function getWizardName() {
+function getWizard() {
   const config = getConfig();
   const defaultName = 'simple';
   log('commit message wizard name from', config);
@@ -427,27 +429,31 @@ function getWizardName() {
   }
 
   const value = config['commit-msg'];
+  if (check.object(value) && check.unemptyString(value.name)) {
+    log('using conventional-v2');
+    return value;
+  }
   if (check.unemptyString(value)) {
     log('using config commit-msg property', value);
-    return value;
+    return {name: value};
   }
   if (check.array(value) && value.length === 1) {
     log('using config commit-msg single value', value);
-    return value[0];
+    return {name: value[0]};
   }
 }
 
 function pickWizard() {
-  const wizardName = getWizardName();
-  if (!wizardName) {
+  const wizard = getWizard();
+  if (!wizard) {
     log('no wizard name set');
     return;
   }
-  log('using commit message wizard %s', wizardName);
+  log('using commit message wizard %s', wizard.name);
 
-  const wiz = isBuiltInWizardName(wizardName) ?
-    loadWizard(wizardName) : require(wizardName);
-  la(check.fn(wiz.prompter), 'missing wizard prompter', wizardName, wiz);
+  const wiz = isBuiltInWizardName(wizard.name) ?
+    loadWizard(wizard) : require(wizard.name);
+  la(check.fn(wiz.prompter), 'missing wizard prompter', wizard.name, wiz);
   return wiz;
 }
 
